@@ -1,0 +1,323 @@
+{
+  "customer_profile": {
+    "customer_id": "CUST00001",
+    "bank_account_id": "ACC000001",
+    "name": "Aino",
+    "age": 26,
+    "city": "Helsinki",
+    "country": "Finland",
+    "currency": "EUR",
+    "analysis_period": {
+      "start_date": "2024-10-03",
+      "end_date": "2026-09-30",
+      "total_months": 24,
+      "total_transactions": 581
+    }
+  },
+  "account_summary": {
+    "current_balance_eur": 4723.58,
+    "monthly_income_avg_eur": 2394.09,
+    "monthly_income_latest_eur": 2447.81,
+    "monthly_spend_total_avg_eur": 2097.58,
+    "monthly_investments_avg_eur": 230.55,
+    "monthly_net_cashflow_avg_eur": 65.96
+  },
+  "three_baskets_monthly": {
+    "basket_1_bedrock": {
+      "label": "Bedrock (Mandatory & Regular)",
+      "monthly_avg_eur": 1309.33,
+      "latest_month_eur": 1266.90,
+      "share_of_spend_pct": 62.42,
+      "fixed_bills_only_avg_eur": 638.14,
+      "breakdown": {
+        "Housing": 520.11,
+        "Groceries": 555.66,
+        "Utilities": 118.03,
+        "Transportation": 115.53
+      }
+    },
+    "basket_2_life_happens": {
+      "label": "Life Happens (Mandatory & Irregular)",
+      "monthly_avg_eur": 378.10,
+      "latest_month_eur": 0.00,
+      "prior_month_aug_2026_eur": 902.48,
+      "share_of_spend_pct": 18.03,
+      "breakdown": {
+        "Health": 329.80,
+        "Home & Tech": 48.29
+      }
+    },
+    "basket_3_flex_zone": {
+      "label": "Flex Zone (Everyday Leakage)",
+      "monthly_avg_eur": 410.15,
+      "latest_month_eur": 611.76,
+      "share_of_spend_pct": 19.55,
+      "breakdown": {
+        "Lifestyle": 155.26,
+        "Entertainment": 135.01,
+        "Travel": 71.40,
+        "Restaurants": 48.48
+      }
+    }
+  },
+  "grocery_analysis_monthly": {
+    "total_monthly_grocery_avg_eur": 555.66,
+    "latest_month_grocery_eur": 379.79,
+    "s_group": {
+      "monthly_avg_eur": 305.21,
+      "total_24m_eur": 7324.99,
+      "wallet_share_pct": 54.92,
+      "banners": {
+        "S-market": {
+          "monthly_avg_eur": 140.04,
+          "total_24m_eur": 3361.06,
+          "tx_count": 51,
+          "mapped_merchants": ["MRC-GRO-0032", "MRC-GRO-0029", "MRC-GRO-0036", "MRC-GRO-0009", "MRC-GRO-0065", "MRC-GRO-0034"]
+        },
+        "Prisma": {
+          "monthly_avg_eur": 113.51,
+          "total_24m_eur": 2724.28,
+          "tx_count": 31,
+          "mapped_merchants": ["MRC-GRO-0073", "MRC-GRO-0054", "MRC-GRO-0064", "MRC-GRO-0075"]
+        },
+        "Alepa": {
+          "monthly_avg_eur": 51.65,
+          "total_24m_eur": 1239.65,
+          "tx_count": 18,
+          "mapped_merchants": ["MRC-GRO-0049", "MRC-GRO-0024", "MRC-GRO-0063"]
+        }
+      }
+    },
+    "competitors": {
+      "monthly_avg_eur": 250.45,
+      "total_24m_eur": 6010.80,
+      "wallet_share_pct": 45.08,
+      "tx_count": 90,
+      "description": "K-Group (K-Citymarket, K-Market), Lidl, and specialty food stores (MCC 5411, 5422, 5451, 5499)"
+    }
+  },
+  "top_5_merchants": [
+    {
+      "rank": 1,
+      "merchant_id": "MRC-GRO-0032",
+      "display_name": "S-market Vallila (MRC-GRO-0032)",
+      "category": "Groceries",
+      "mcc_code": 5411,
+      "basket": "Basket 1: Bedrock",
+      "tx_count": 19,
+      "total_spend_eur": 1318.08,
+      "monthly_avg_eur": 54.92
+    },
+    {
+      "rank": 2,
+      "merchant_id": "MRC-HEA-0041",
+      "display_name": "Terveystalo Kamppi (MRC-HEA-0041)",
+      "category": "Health",
+      "mcc_code": 8011,
+      "basket": "Basket 2: Life Happens",
+      "tx_count": 5,
+      "total_spend_eur": 891.24,
+      "monthly_avg_eur": 37.14
+    },
+    {
+      "rank": 3,
+      "merchant_id": "MRC-HEA-0032",
+      "display_name": "Yliopiston Apteekki (MRC-HEA-0032)",
+      "category": "Health",
+      "mcc_code": 5912,
+      "basket": "Basket 2: Life Happens",
+      "tx_count": 3,
+      "total_spend_eur": 877.48,
+      "monthly_avg_eur": 36.56
+    },
+    {
+      "rank": 4,
+      "merchant_id": "MRC-HEA-0048",
+      "display_name": "Apteekki Hakaniemi (MRC-HEA-0048)",
+      "category": "Health",
+      "mcc_code": 5912,
+      "basket": "Basket 2: Life Happens",
+      "tx_count": 3,
+      "total_spend_eur": 870.56,
+      "monthly_avg_eur": 36.27
+    },
+    {
+      "rank": 5,
+      "merchant_id": "MRC-GRO-0073",
+      "display_name": "Prisma Tripla (MRC-GRO-0073)",
+      "category": "Groceries",
+      "mcc_code": 5411,
+      "basket": "Basket 1: Bedrock",
+      "tx_count": 10,
+      "total_spend_eur": 858.91,
+      "monthly_avg_eur": 35.79
+    }
+  ],
+  "recent_15_transactions": [
+    {
+      "tx_date": "2026-09-30",
+      "tx_timestamp": "30SEP26:13:46:32",
+      "category": "Restaurants",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-RES-0018",
+      "mcc_code": 5812,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -35.49,
+      "balance_after_eur": 4723.58
+    },
+    {
+      "tx_date": "2026-09-28",
+      "tx_timestamp": "28SEP26:20:09:26",
+      "category": "Entertainment",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-ENT-0018",
+      "mcc_code": 7996,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -90.96,
+      "balance_after_eur": 4759.07
+    },
+    {
+      "tx_date": "2026-09-27",
+      "tx_timestamp": "27SEP26:23:03:14",
+      "category": "Entertainment",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-ENT-0017",
+      "mcc_code": 7999,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -55.85,
+      "balance_after_eur": 4850.03
+    },
+    {
+      "tx_date": "2026-09-25",
+      "tx_timestamp": "25SEP26:19:12:59",
+      "category": "Restaurants",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-RES-0003",
+      "mcc_code": 5812,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -19.88,
+      "balance_after_eur": 4905.88
+    },
+    {
+      "tx_date": "2026-09-25",
+      "tx_timestamp": "25SEP26:05:11:48",
+      "category": "Transportation",
+      "basket": "Basket 1: Bedrock",
+      "merchant_id": "MRC-TRN-0047",
+      "mcc_code": 7523,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -62.16,
+      "balance_after_eur": 4925.76
+    },
+    {
+      "tx_date": "2026-09-24",
+      "tx_timestamp": "24SEP26:16:05:51",
+      "category": "Transportation",
+      "basket": "Basket 1: Bedrock",
+      "merchant_id": "MRC-TRN-0003",
+      "mcc_code": 4111,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -24.95,
+      "balance_after_eur": 4987.92
+    },
+    {
+      "tx_date": "2026-09-22",
+      "tx_timestamp": "22SEP26:19:57:53",
+      "category": "Restaurants",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-RES-0012",
+      "mcc_code": 5812,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -15.19,
+      "balance_after_eur": 5012.87
+    },
+    {
+      "tx_date": "2026-09-20",
+      "tx_timestamp": "20SEP26:19:33:25",
+      "category": "Restaurants",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-RES-0022",
+      "mcc_code": 5812,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -29.56,
+      "balance_after_eur": 5028.06
+    },
+    {
+      "tx_date": "2026-09-19",
+      "tx_timestamp": "19SEP26:18:12:47",
+      "category": "Restaurants",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-RES-0064",
+      "mcc_code": 5814,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -36.47,
+      "balance_after_eur": 5057.62
+    },
+    {
+      "tx_date": "2026-09-19",
+      "tx_timestamp": "19SEP26:13:04:23",
+      "category": "Groceries",
+      "basket": "Basket 1: Bedrock",
+      "merchant_id": "MRC-GRO-0063",
+      "mcc_code": 5499,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -47.19,
+      "balance_after_eur": 5094.09
+    },
+    {
+      "tx_date": "2026-09-18",
+      "tx_timestamp": "18SEP26:23:27:34",
+      "category": "Entertainment",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-ENT-0022",
+      "mcc_code": 7922,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -54.42,
+      "balance_after_eur": 5141.28
+    },
+    {
+      "tx_date": "2026-09-18",
+      "tx_timestamp": "18SEP26:21:05:17",
+      "category": "Restaurants",
+      "basket": "Basket 3: Flex Zone",
+      "merchant_id": "MRC-RES-0037",
+      "mcc_code": 5812,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -27.21,
+      "balance_after_eur": 5195.70
+    },
+    {
+      "tx_date": "2026-09-18",
+      "tx_timestamp": "18SEP26:18:38:30",
+      "category": "Transportation",
+      "basket": "Basket 1: Bedrock",
+      "merchant_id": "MRC-TRN-0059",
+      "mcc_code": 5541,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -70.40,
+      "balance_after_eur": 5222.91
+    },
+    {
+      "tx_date": "2026-09-18",
+      "tx_timestamp": "18SEP26:16:06:15",
+      "category": "Invest Deposit",
+      "basket": "Savings & Investments",
+      "merchant_id": null,
+      "mcc_code": null,
+      "transaction_type": "investment_deposit",
+      "tx_amount_eur": -235.72,
+      "balance_after_eur": 5293.31
+    },
+    {
+      "tx_date": "2026-09-18",
+      "tx_timestamp": "18SEP26:14:36:41",
+      "category": "Groceries",
+      "basket": "Basket 1: Bedrock",
+      "merchant_id": "MRC-GRO-0028",
+      "mcc_code": 5411,
+      "transaction_type": "purchase",
+      "tx_amount_eur": -83.86,
+      "balance_after_eur": 5529.03
+    }
+  ]
+}
