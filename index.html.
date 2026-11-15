@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S-Koutsi · Personal Economic Trainer (concept)</title>
+  <!-- Tailwind CSS (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { sb: "#00A550", ink: "#1E293B" },
+        fontFamily: { sans: ["-apple-system","BlinkMacSystemFont","SF Pro Text","Inter","Segoe UI","Roboto","sans-serif"] }
+      } }
+    };
+  </script>
+  <!-- React 18 + ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <!-- Lucide icons for React (global: LucideReact). Its UMD build expects a lowercase `react` global. -->
+  <script>window.react = window.React;</script>
+  <script src="https://unpkg.com/lucide-react@0.460.0/dist/umd/lucide-react.min.js"></script>
+  <!-- Babel compiles the JSX below in the browser -->
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  <style>
+html,body{margin:0;background:#0b1220;overflow-x:hidden}
+.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{scrollbar-width:none}
+.sb-range{-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;outline:none}
+.sb-range::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid #00A550;box-shadow:0 2px 6px rgba(0,0,0,.2);cursor:pointer}
+.sb-range::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #00A550;cursor:pointer}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.demo-hl{position:relative;z-index:5;outline:3px solid rgba(52,211,153,.95);outline-offset:3px;animation:demoPulse 1.1s ease-in-out infinite;transition:transform .3s}
+@keyframes demoPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,165,80,.55);transform:scale(1)}50%{box-shadow:0 0 0 10px rgba(0,165,80,0);transform:scale(1.015)}}
+  </style>
+</head>
+<body>
+  <div id="root">
+    <p style="color:#9ca3af;font-family:sans-serif;text-align:center;margin-top:40vh">Loading S-Koutsi… (needs an internet connection for the CDN libraries)</p>
+  </div>
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useContext, createContext } = React;
+const { createRoot } = ReactDOM;
+const { ShoppingBasket, MessageCircle, Link2, Send, Sparkles, Bell, CreditCard, ShieldCheck } = LucideReact;
+
+/* ---------------- Customer data (S-Bank dataset, CUST00001) ---------------- */
+const D = {
+  name: "Aino", age: 26, city: "Helsinki",
+  balance: 4723.58,
+  incomeAvg: 2394.09, incomeLatest: 2447.81,
+  spendAvg: 2097.58, investAvg: 230.55, netAvg: 65.96,
+  bedrock: { avg: 1309.33, latest: 1266.9, pct: 62.42, fixed: 638.14,
+    breakdown: { Housing: 520.11, Groceries: 555.66, Utilities: 118.03, Transportation: 115.53 } },
+  life: { avg: 378.1, latest: 0, aug: 902.48, pct: 18.03,
+    breakdown: { Health: 329.8, "Home & Tech": 48.29 } },
+  flex: { avg: 410.15, latest: 611.76, pct: 19.55,
+    breakdown: { Lifestyle: 155.26, Entertainment: 135.01, Travel: 71.4, Restaurants: 48.48 } },
+  grocery: { avg: 555.66, latest: 379.79,
+    sgroup: { avg: 305.21, share: 54.92, smarket: { avg: 140.04, tx: 51 }, prisma: { avg: 113.51, tx: 31 }, alepa: { avg: 51.65, tx: 18 } },
+    comp: { avg: 250.45, share: 45.08, tx: 90 } },
+  restaurantsSep: 163.8, // sum of Sept 2026 restaurant tx in recent list
+  lastAlepa: "Sat 19 Sep, 13:04",
+  healthTop: [
+    { n: "Terveystalo Kamppi", v: 891.24 },
+    { n: "Yliopiston Apteekki", v: 877.48 },
+    { n: "Apteekki Hakaniemi", v: 870.56 },
+  ],
+};
+const HELSINKI_GROCERY_BENCH = 380;
+const WEEKS = 4.33;
+const freeMonthly = D.incomeLatest - D.bedrock.avg - D.life.avg - D.investAvg; // 529.83
+const SAFE_WEEK = freeMonthly / WEEKS; // ≈122.36
+
+// Simulated PSD2 sandbox data for other banks
+const EXT = {
+  nordea: { balance: 1850.0, recurring: [{ n: "Netflix", v: 13.99, day: 3 }, { n: "Elisa mobile", v: 24.9, day: 8 }] },
+  op: { balance: 312.4, recurring: [{ n: "Netflix", v: 13.99, day: 11 }, { n: "OP Visa instalment", v: 60.0, day: 20 }] },
+};
+const extMonthly = [...EXT.nordea.recurring, ...EXT.op.recurring].reduce((a, b) => a + b.v, 0);
+
+// Official S Group Bonus table (all co-ops except KPO & Koillismaa): household monthly purchases → %
+const BONUS_TABLE = [[900, 5], [800, 4.5], [700, 4], [600, 3.5], [500, 3], [400, 2.5], [300, 2], [200, 1.5], [50, 1]];
+const bonusPct = (x) => (BONUS_TABLE.find(([t]) => x >= t) || [0, 0])[1];
+const nextTier = (x) => [...BONUS_TABLE].reverse().find(([t]) => t > x);
+const BONUS_SPEND = D.grocery.sgroup.avg; // S-Group purchases visible in the data
+const BONUS_LVL = bonusPct(BONUS_SPEND); // 2.0
+const BONUS_NEXT = nextTier(BONUS_SPEND); // [400, 2.5]
+const BONUS_MONTH = BONUS_SPEND * BONUS_LVL / 100;
+const PAY_BENEFIT = BONUS_SPEND * 0.005; // S-Etukortti Visa payment-method benefit
+const bonusFor = (x) => x * bonusPct(x) / 100;
+
+const fmt = (n, d = 0) =>
+  (n < 0 ? "−" : "") + "€" + Math.abs(Number(n)).toLocaleString("en-IE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const DemoCtx = createContext({});
+const DEMO_REPAIR = 231.82; // demo scenario: appliance repair shock
+
+/* ---------------- Helpers ---------------- */
+function useCountUp(target, ms = 700) {
+  const [v, setV] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    const start = performance.now(), a = from.current, b = target;
+    let raf;
+    const step = (t) => {
+      const p = Math.min(1, (t - start) / ms), e = 1 - Math.pow(1 - p, 3);
+      setV(a + (b - a) * e);
+      if (p < 1) raf = requestAnimationFrame(step); else from.current = b;
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return v;
+}
+
+const Icon = {
+  baskets: (c) => <ShoppingBasket className={c} strokeWidth={2} />,
+  chat: (c) => <MessageCircle className={c} strokeWidth={2} />,
+  link: (c) => <Link2 className={c} strokeWidth={2} />,
+  send: (c) => <Send className={c} strokeWidth={2.2} />,
+  bell: (c) => <Bell className={c} strokeWidth={1.8} />,
+  card: (c) => <CreditCard className={c} strokeWidth={1.8} />,
+  spark: (c) => <Sparkles className={c} strokeWidth={2} />,
+};
+
+/* S-Koutsi mark: a compass (guidance) whose needle points up-right (growth),
+   with a small four-point star for the AI. */
+function CoachMark({ size = 36, onDark = true, pulse = false }) {
+  const fg = onDark ? "#fff" : "#00A550";
+  return (
+    <span className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 40 40" width={size} height={size}>
+        <defs>
+          <linearGradient id={`cm-${onDark}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={onDark ? "rgba(255,255,255,.28)" : "#E7F7EE"} />
+            <stop offset="1" stopColor={onDark ? "rgba(255,255,255,.08)" : "#CDEFDB"} />
+          </linearGradient>
+        </defs>
+        <rect x="1" y="1" width="38" height="38" rx="13" fill={`url(#cm-${onDark})`} stroke={onDark ? "rgba(255,255,255,.35)" : "rgba(0,165,80,.25)"} />
+        <circle cx="20" cy="21" r="10.5" fill="none" stroke={fg} strokeOpacity=".55" strokeWidth="1.2" />
+        {[0, 90, 180, 270].map((a) => (
+          <line key={a} x1="20" y1="11.3" x2="20" y2="13" stroke={fg} strokeOpacity=".7" strokeWidth="1.2" strokeLinecap="round" transform={`rotate(${a} 20 21)`} />
+        ))}
+        <polygon points="26.6,14.4 21.6,22.6 18.4,19.4" fill={fg} />
+        <polygon points="13.4,27.6 18.4,19.4 21.6,22.6" fill={fg} fillOpacity=".38" />
+        <circle cx="20" cy="21" r="1.3" fill={onDark ? "#00A550" : "#fff"} stroke={fg} strokeWidth=".8" />
+        <path d="M30.5 6.5l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill={onDark ? "#FDE68A" : "#00A550"} />
+      </svg>
+      {pulse && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-300 ring-2 ring-sb animate-pulse" />}
+    </span>
+  );
+}
+
+/* ---------------- Phone chrome ---------------- */
+function StatusBar() {
+  return (
+    <div className="h-11 px-7 flex items-center justify-between text-[13px] font-semibold text-white bg-sb">
+      <span>9:41</span>
+      <div className="absolute left-1/2 -translate-x-1/2 top-2 w-28 h-7 bg-black rounded-full" />
+      <span className="flex items-center gap-1.5">
+        <span className="tracking-tighter">▂▄▆█</span>
+        <span className="w-6 h-3 border border-white/80 rounded-[3px] p-[1px]"><span className="block h-full w-4/5 bg-white rounded-[1px]" /></span>
+      </span>
+    </div>
+  );
+}
+
+function BonusStrip({ compact }) {
+  const toNext = BONUS_NEXT[0] - BONUS_SPEND;
+  const pos = (BONUS_SPEND / 900) * 100;
+  if (compact)
+    return (
+      <div className="mt-3 flex items-center gap-2 bg-white/15 rounded-full pl-1 pr-3 py-1 text-[11.5px]">
+        <span className="bg-white text-sb font-extrabold rounded-full px-2 py-0.5 text-[11px]">Bonus {BONUS_LVL.toFixed(1).replace(".", ",")} %</span>
+        <span className="opacity-90">{fmt(toNext)} to {BONUS_NEXT[1].toFixed(1).replace(".", ",")} %</span>
+        <span className="ml-auto opacity-80">Payday 10.12.</span>
+      </div>
+    );
+  return (
+    <div className="mt-3.5 rounded-2xl bg-white text-ink p-3 shadow-[0_6px_20px_rgba(0,0,0,.12)]">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-6 rounded-[5px] bg-gradient-to-br from-sb to-emerald-700 grid place-items-center text-white">{Icon.card("w-4 h-4")}</div>
+          <div className="leading-tight">
+            <div className="text-[10.5px] text-slate-500 font-medium">S-Etukortti · Bonus level</div>
+            <div className="text-[18px] font-extrabold text-sb leading-none">{BONUS_LVL.toFixed(1).replace(".", ",")} %</div>
+          </div>
+        </div>
+        <div className="text-right leading-tight">
+          <div className="text-[10.5px] text-slate-500">Payday 10.12.</div>
+          <div className="text-[15px] font-bold tabular-nums">≈ {fmt(BONUS_MONTH + PAY_BENEFIT, 2)}</div>
+        </div>
+      </div>
+      <div className="relative mt-2.5">
+        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-sb" style={{ width: pos + "%" }} />
+        </div>
+        <div className="flex justify-between text-[8.5px] text-slate-400 mt-1 tabular-nums">
+          {[1, 2, 3, 4, 5].map((p) => <span key={p} className={p === BONUS_LVL ? "text-sb font-bold" : ""}>{p} %</span>)}
+        </div>
+      </div>
+      <div className="text-[11px] text-slate-600 mt-0.5">
+        S-Group purchases <b className="text-ink">{fmt(BONUS_SPEND)}</b>/mo · <b className="text-sb">{fmt(toNext)} more</b> reaches {BONUS_NEXT[1].toFixed(1).replace(".", ",")} %
+      </div>
+    </div>
+  );
+}
+
+function AppHeader({ tab, psd2, goCoach }) {
+  const titles = { baskets: "My 3 Baskets", coach: "S-Koutsi", psd2: "Full Picture" };
+  return (
+    <div className="bg-sb text-white px-5 pt-1 pb-4 rounded-b-[28px] relative z-10 shadow-[0_4px_14px_rgba(0,90,45,.25)]">
+      <div className="flex items-center justify-between">
+        <div className="leading-tight">
+          <div className="text-[12px] font-medium text-emerald-50/90">Hei {D.name} · {titles[tab]}</div>
+          <div className="text-[22px] font-extrabold tracking-tight">
+            {tab === "coach" ? "Your money coach" : tab === "psd2" ? "All your banks" : "Talous tänään"}
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5">
+          {psd2 && <span className="text-[9.5px] bg-white/20 rounded-full px-2 py-0.5 font-bold tracking-wide">PSD2</span>}
+          <button className="relative w-9 h-9 rounded-full grid place-items-center hover:bg-white/10" aria-label="Notifications">
+            {Icon.bell("w-[22px] h-[22px]")}
+            <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-300 ring-2 ring-sb" />
+          </button>
+          <button onClick={goCoach} aria-label="Open S-Koutsi coach"><CoachMark size={38} pulse /></button>
+        </div>
+      </div>
+      <BonusStrip compact={tab === "coach"} />
+    </div>
+  );
+}
+
+function TabBar({ tab, setTab }) {
+  const items = [
+    { id: "baskets", label: "3 Baskets", icon: Icon.baskets },
+    { id: "coach", label: "S-Koutsi AI", icon: Icon.chat },
+    { id: "psd2", label: "Full Picture", icon: Icon.link },
+  ];
+  return (
+    <div className="h-[78px] bg-white border-t border-slate-200 flex px-2 pb-5 pt-1.5">
+      {items.map((it) => {
+        const on = tab === it.id;
+        return (
+          <button key={it.id} data-demo={`tab-${it.id}`} onClick={() => setTab(it.id)} className="flex-1 flex flex-col items-center gap-0.5 relative">
+            {on && <span className="absolute -top-1.5 w-10 h-1 rounded-full bg-sb" />}
+            {it.icon(`w-6 h-6 ${on ? "text-sb" : "text-slate-400"}`)}
+            <span className={`text-[11px] font-semibold ${on ? "text-sb" : "text-slate-500"}`}>{it.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------------- Tab 1: 3 Baskets ---------------- */
+function SafeToSpendHero({ value, psd2 }) {
+  const v = useCountUp(value);
+  const pctOfFlex = Math.min(100, (D.flex.latest / WEEKS / value) * 100);
+  return (
+    <div data-demo="safe" className="rounded-3xl bg-gradient-to-br from-ink to-slate-700 text-white p-5 shadow-lg relative overflow-hidden">
+      <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-sb/30 blur-2xl" />
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] uppercase tracking-wider text-emerald-300 font-semibold">Safe-to-Spend this week</span>
+        <span className="text-[10px] bg-white/10 rounded-full px-2 py-0.5">{psd2 ? "All banks" : "S-Bank only"}</span>
+      </div>
+      <div className="text-[44px] font-extrabold leading-none mt-2 tabular-nums">{fmt(v)}</div>
+      <div className="text-[12px] text-slate-300 mt-2 leading-snug">
+        Income {fmt(D.incomeLatest)} − Bedrock {fmt(D.bedrock.avg)} − Life Happens reserve {fmt(D.life.avg)} − investing {fmt(D.investAvg)}
+        {psd2 && <> − other-bank bills {fmt(extMonthly)}</>} ÷ 4.33 weeks
+      </div>
+      <div className="mt-3">
+        <div className="flex justify-between text-[11px] text-slate-300 mb-1">
+          <span>Sept Flex pace: {fmt(D.flex.latest / WEEKS)}/wk</span>
+          <span className="text-amber-300 font-semibold">{D.flex.latest / WEEKS > value ? "Over pace" : "On track"}</span>
+        </div>
+        <div className="h-2 rounded-full bg-white/15 overflow-hidden">
+          <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: pctOfFlex + "%" }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BasketCard({ emoji, title, sub, color, data, extra, hint, demoId, alert }) {
+  const max = Math.max(...Object.values(data.breakdown));
+  return (
+    <div data-demo={demoId} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+      {alert && <div className="mb-3 -mt-1 flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 px-2.5 py-1.5 text-[11.5px] text-rose-700 animate-[fadeIn_.4s_ease]"><span>⚡</span><span><b>New shock:</b> appliance repair {fmt(DEMO_REPAIR, 2)} <span className="text-rose-400">(demo scenario)</span></span></div>}
+      <div className="flex items-start justify-between">
+        <div className="flex gap-3">
+          <div className={`w-11 h-11 rounded-xl grid place-items-center text-xl ${color.bg}`}>{emoji}</div>
+          <div>
+            <div className="font-bold text-ink text-[15px]">{title}</div>
+            <div className="text-[11px] text-slate-500">{sub}</div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="font-extrabold text-ink text-[17px] tabular-nums">{fmt(data.avg)}</div>
+          <div className="text-[10px] text-slate-500">avg / month · {data.pct.toFixed(0)}%</div>
+        </div>
+      </div>
+      <div className="mt-3 space-y-1.5">
+        {Object.entries(data.breakdown).map(([k, v]) => (
+          <div key={k} className="flex items-center gap-2 text-[12px]">
+            <span className="w-24 text-slate-600 truncate">{k}</span>
+            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${color.bar}`} style={{ width: (v / max) * 100 + "%" }} />
+            </div>
+            <span className="w-14 text-right tabular-nums text-slate-700 font-medium">{fmt(v)}</span>
+          </div>
+        ))}
+      </div>
+      {extra && <div className="mt-3 text-[11.5px] text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{extra}</div>}
+      {hint && <div className={`mt-2 text-[11.5px] font-medium ${color.text}`}>💡 {hint}</div>}
+    </div>
+  );
+}
+
+function BasketsTab({ safe, psd2, goCoach }) {
+  const demo = useContext(DemoCtx);
+  const diff = ((D.grocery.avg - HELSINKI_GROCERY_BENCH) / HELSINKI_GROCERY_BENCH) * 100;
+  const latestDiff = ((D.grocery.latest - HELSINKI_GROCERY_BENCH) / HELSINKI_GROCERY_BENCH) * 100;
+  return (
+    <div className="p-4 pt-7 space-y-3">
+      <div className="text-[13px] text-slate-600">Where your money goes — sorted into 3 baskets.</div>
+      <SafeToSpendHero value={safe} psd2={psd2} />
+
+      {/* share bar */}
+      <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100">
+        <div className="flex h-3 rounded-full overflow-hidden">
+          <div className="bg-sb" style={{ width: D.bedrock.pct + "%" }} />
+          <div className="bg-sky-500" style={{ width: D.life.pct + "%" }} />
+          <div className="bg-amber-400" style={{ width: D.flex.pct + "%" }} />
+        </div>
+        <div className="flex justify-between text-[10.5px] text-slate-600 mt-1.5">
+          <span>● Bedrock 62%</span><span>● Life Happens 18%</span><span>● Flex 20%</span>
+        </div>
+      </div>
+
+      {/* Benchmark badge */}
+      <div className="rounded-2xl p-3.5 bg-amber-50 border border-amber-200 flex gap-3 items-center">
+        <div className="w-12 h-12 shrink-0 rounded-full bg-white border-2 border-amber-300 grid place-items-center text-[10px] font-black text-amber-700 leading-tight text-center">TILASTO<br/>KESKUS</div>
+        <div className="flex-1">
+          <div className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide">Statistics Finland benchmark</div>
+          <div className="text-[13px] text-ink leading-snug">
+            Groceries <b>{fmt(D.grocery.avg)}</b>/mo vs Helsinki single adult <b>{fmt(HELSINKI_GROCERY_BENCH)}</b>
+            <span className="ml-1 inline-block bg-amber-500 text-white text-[10.5px] font-bold rounded-full px-1.5">+{diff.toFixed(0)}%</span>
+          </div>
+          <div className="text-[11px] text-slate-600 mt-0.5">Sept: {fmt(D.grocery.latest)} — right on the benchmark 🎉</div>
+        </div>
+      </div>
+
+      <BasketCard demoId="bedrock" emoji="🪨" title="The Bedrock" sub="Mandatory & Regular" data={D.bedrock}
+        color={{ bg: "bg-emerald-50", bar: "bg-sb", text: "text-sb" }}
+        extra={<>Fixed bills only: <b>{fmt(D.bedrock.fixed)}</b>/mo. Sept: {fmt(D.bedrock.latest)}.</>}
+        hint="Predictable. Automate it and stop thinking about it." />
+      <BasketCard demoId="life" alert={demo.scenario} emoji="🩹" title="Life Happens" sub="Mandatory & Irregular" data={D.life}
+        color={{ bg: "bg-sky-50", bar: "bg-sky-500", text: "text-sky-700" }}
+        extra={<>Aug spike: <b>{fmt(D.life.aug)}</b> · Sept: {fmt(D.life.latest)}. Health = Terveystalo + 2 pharmacies (€2,639 in 24 mo).</>}
+        hint={`Set aside ${fmt(D.life.avg)}/mo in a buffer pot so spikes don't hurt.`} />
+      <BasketCard demoId="flex" emoji="🌊" title="The Flex Zone" sub="Everyday leakage" data={D.flex}
+        color={{ bg: "bg-amber-50", bar: "bg-amber-400", text: "text-amber-700" }}
+        extra={<>Sept: <b>{fmt(D.flex.latest)}</b> — that's <b>+{(((D.flex.latest - D.flex.avg) / D.flex.avg) * 100).toFixed(0)}%</b> over your average. Restaurants alone hit {fmt(D.restaurantsSep)}.</>}
+        hint="This is the only basket you fully control." />
+
+      <button onClick={goCoach} className="w-full rounded-2xl bg-sb text-white font-semibold py-3 text-[14px] flex items-center justify-center gap-2 shadow-md active:scale-[.98] transition">
+        {Icon.spark("w-4 h-4")} Ask S-Koutsi how to shrink the Flex Zone
+      </button>
+      <div className="text-[10px] text-slate-400 text-center pb-2">Based on 581 transactions · Oct 2024 – Sep 2026</div>
+    </div>
+  );
+}
+
+/* ---------------- Widgets ---------------- */
+function Range({ value, min, max, step = 1, onChange, accent = "#00A550" }) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))}
+      className="w-full sb-range" style={{ background: `linear-gradient(to right, ${accent} ${pct}%, #e2e8f0 ${pct}%)` }} />
+  );
+}
+
+function WidgetShell({ title, tag, children }) {
+  return (
+    <div className="mt-2 bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden w-[290px]">
+      <div className="bg-emerald-50 px-3 py-2 flex items-center justify-between">
+        <span className="text-[12.5px] font-bold text-ink">{title}</span>
+        {tag && <span className="text-[9.5px] font-bold uppercase tracking-wide text-sb bg-white rounded-full px-2 py-0.5">{tag}</span>}
+      </div>
+      <div className="p-3">{children}</div>
+    </div>
+  );
+}
+
+function LiquiditySlider({ repair = 400, bill = 150 }) {
+  const BILL = bill, PAYDAY = 10, RATE = 0.09; // est. statutory late interest (reference rate + 7 pp)
+  const demo = useContext(DemoCtx);
+  const [d, setD] = useState(demo.liqDays != null ? Math.round(demo.liqDays) : PAYDAY);
+  useEffect(() => { if (demo.liqDays != null) setD(Math.round(demo.liqDays)); }, [demo.liqDays]);
+  const leftIfPaid = D.life.avg - repair - BILL;
+  const interest = BILL * RATE * (d / 365);
+  const fee = d > 14 ? 5 : 0;
+  const cost = interest + fee;
+  const loanCost = 12 + BILL * 0.15 * (d / 365); // illustrative quick-loan setup fee + capped 15% interest
+  const zone = d === 0 ? "now" : d <= 14 ? "safe" : "fee";
+  return (
+    <WidgetShell title="⚡ Tactical Liquidity Slider" tag={`Helen · ${fmt(BILL)}`}>
+      <div className="grid grid-cols-2 gap-1.5 mb-3">
+        <button data-demo="liq-friday" onClick={() => setD(0)} className={`text-left rounded-xl border px-2.5 py-2 transition ${d === 0 ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white"}`}>
+          <div className="text-[11.5px] font-bold text-ink">Pay Friday</div>
+          <div className={`text-[10px] ${leftIfPaid < 50 ? "text-rose-600" : "text-slate-500"}`}>Leaves {fmt(leftIfPaid, 2)} in buffer</div>
+        </button>
+        <button data-demo="liq-buffer" onClick={() => setD(14)} className={`text-left rounded-xl border px-2.5 py-2 transition ${d >= 14 ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+          <div className="text-[11.5px] font-bold text-ink">14-Day Reminder Buffer</div>
+          <div className="text-[10px] text-slate-500">Max €5 fee · paid after payday · credit safe</div>
+        </button>
+      </div>
+      <div className="text-[11.5px] text-slate-600 mb-2">Delay the electricity bill by <b className="text-ink">{d} days</b></div>
+      <Range value={d} min={0} max={21} onChange={setD} accent={zone === "fee" ? "#f59e0b" : "#00A550"} />
+      <div className="relative h-5 text-[9.5px] text-slate-500 mt-0.5">
+        <span className="absolute left-0">Due Fri</span>
+        <span className="absolute" style={{ left: `${(PAYDAY / 21) * 100 - 8}%` }}>💰 Payday</span>
+        <span className="absolute" style={{ left: `${(14 / 21) * 100 - 4}%` }}>14 d</span>
+      </div>
+      <div className="flex h-1.5 rounded-full overflow-hidden mb-3">
+        <div className="bg-emerald-400" style={{ width: `${(14 / 21) * 100}%` }} />
+        <div className="bg-amber-400 flex-1" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className={`rounded-xl p-2.5 ${zone === "fee" ? "bg-amber-50" : "bg-emerald-50"}`}>
+          <div className="text-[10px] text-slate-500">Cost of waiting</div>
+          <div className="text-[20px] font-extrabold text-ink tabular-nums">{fmt(cost, 2)}</div>
+          <div className="text-[9.5px] text-slate-500">interest {fmt(interest, 2)}{fee ? " + €5 reminder" : ""}</div>
+        </div>
+        <div className="rounded-xl p-2.5 bg-rose-50">
+          <div className="text-[10px] text-slate-500">Quick loan instead</div>
+          <div className="text-[20px] font-extrabold text-rose-600 tabular-nums">{fmt(loanCost, 2)}</div>
+          <div className="text-[9.5px] text-slate-500">fees + up to 15% p.a.</div>
+        </div>
+      </div>
+      <div className={`mt-2.5 text-[11.5px] rounded-lg px-2.5 py-2 ${zone === "fee" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+        {zone === "now" && "Paying today keeps everything clean — but squeezes this week."}
+        {zone === "safe" && <>✅ Within 14 days: under Finnish debt collection law a reminder can't be sent yet, so <b>no €5 fee</b> — only a few cents of late interest.</>}
+        {zone === "fee" && <>⚠️ After 14 days Helen may send a reminder with the statutory <b>€5 fee</b>. Still cheaper than a loan, but pay by day 14.</>}
+      </div>
+      <div role="note" data-demo="liq-note" className="mt-2.5 flex gap-2 rounded-xl border-l-4 border-sky-500 bg-sky-50 px-2.5 py-2">
+        <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-sky-600" strokeWidth={2} />
+        <div className="text-[11px] leading-snug text-sky-900">
+          <b>Note:</b> Using the 14-day €5 reminder window protects your credit score (<i>luottotiedot</i>). A late bill or a reminder never creates a payment default. That takes <b>60+ days</b> of non-payment plus a formal notice, or a court ruling.
+        </div>
+      </div>
+      <button className="mt-2.5 w-full text-[12px] font-semibold text-white bg-sb rounded-xl py-2">Schedule Helen payment for payday</button>
+    </WidgetShell>
+  );
+}
+
+function PunalappuSniper({ budget: b0 = 50 }) {
+  const demo = useContext(DemoCtx);
+  const [budget, setBudget] = useState(b0);
+  const [late, setLate] = useState(true);
+  const [share, setShare] = useState(demo.sniperShare != null ? Math.round(demo.sniperShare) : 100);
+  useEffect(() => { if (demo.sniperShare != null) setShare(Math.round(demo.sniperShare / 5) * 5); }, [demo.sniperShare]);
+  const disc = late ? 0.6 : 0.3;
+  const redPart = budget * (share / 100), rest = budget - redPart;
+  const value = redPart / (1 - disc) + rest;
+  return (
+    <WidgetShell title="🎯 9 PM Punalappu Sniper" tag="S-Group">
+      <div className="flex rounded-xl bg-slate-100 p-1 mb-3">
+        {[{ k: false, l: "Daytime · −30%" }, { k: true, l: "After 21:00 · −60%" }].map((o) => (
+          <button key={String(o.k)} onClick={() => setLate(o.k)}
+            className={`flex-1 text-[11px] font-semibold rounded-lg py-1.5 transition ${late === o.k ? "bg-white shadow text-ink" : "text-slate-500"}`}>{o.l}</button>
+        ))}
+      </div>
+      <div className="flex justify-between text-[11px] text-slate-600"><span>Food budget</span><b className="text-ink">{fmt(budget)}</b></div>
+      <Range value={budget} min={20} max={100} onChange={setBudget} />
+      <div data-demo="sniper-share">
+        <div className="flex justify-between text-[11px] text-slate-600 mt-2"><span>Basket from red-label items</span><b className="text-ink">{share}%</b></div>
+        <Range value={share} min={0} max={100} step={5} onChange={setShare} accent="#e11d48" />
+      </div>
+      <div data-demo="sniper-result" className="mt-3 rounded-xl bg-gradient-to-r from-rose-500 to-rose-600 text-white p-3 flex items-center justify-between">
+        <div>
+          <div className="text-[10px] opacity-90">You pay {fmt(budget)} · you get</div>
+          <div className="text-[26px] font-extrabold leading-none tabular-nums">{fmt(value)}</div>
+          <div className="text-[10px] opacity-90">worth of food</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[30px]">🏷️</div>
+          <div className="text-[11px] font-bold">×{(value / budget).toFixed(2)}</div>
+          <div className="text-[10px] opacity-90">saves {fmt(value - budget)}</div>
+        </div>
+      </div>
+      <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-center">
+        {[["Alepa", D.grocery.sgroup.alepa.tx, "Nearby, open late"], ["Prisma", D.grocery.sgroup.prisma.tx, "Tripla · biggest range"], ["S-market", D.grocery.sgroup.smarket.tx, "Vallila"]].map(([n, t, s]) => (
+          <div key={n} className="rounded-lg bg-slate-50 p-1.5">
+            <div className="text-[11px] font-bold text-ink">{n}</div>
+            <div className="text-[9.5px] text-slate-500">{t} trips · {s}</div>
+          </div>
+        ))}
+      </div>
+      <div className="text-[9.5px] text-slate-400 mt-2">Red-label timing and availability vary by store — check the shelf label.</div>
+    </WidgetShell>
+  );
+}
+
+function CutSavings() {
+  const [cut, setCut] = useState(20);
+  const [base, setBase] = useState("sep");
+  const monthly = base === "sep" ? D.restaurantsSep : D.flex.breakdown.Restaurants;
+  const save = monthly * (cut / 100);
+  const r = 0.05 / 12;
+  const fv = save * ((Math.pow(1 + r, 12) - 1) / r) * (1 + r);
+  const yearRaw = save * 12;
+  const bonus = (bonusFor(BONUS_SPEND + save) - bonusFor(BONUS_SPEND)) * 12; // extra Bonus if saving is spent at S-Group instead
+  const total = fv + bonus;
+  const months = Array.from({ length: 12 }, (_, i) => save * ((Math.pow(1 + r, i + 1) - 1) / r) * (1 + r));
+  const maxM = months[11] + bonus || 1;
+  return (
+    <WidgetShell title="☕ Wolt & Café Cutter" tag="1-year impact">
+      <div className="flex rounded-xl bg-slate-100 p-1 mb-3">
+        {[["sep", `Sept pace ${fmt(D.restaurantsSep)}`], ["avg", `24-mo avg ${fmt(D.flex.breakdown.Restaurants)}`]].map(([k, l]) => (
+          <button key={k} onClick={() => setBase(k)} className={`flex-1 text-[10.5px] font-semibold rounded-lg py-1.5 ${base === k ? "bg-white shadow text-ink" : "text-slate-500"}`}>{l}</button>
+        ))}
+      </div>
+      <div className="flex justify-between text-[11px] text-slate-600"><span>Cut restaurants & delivery by</span><b className="text-ink">{cut}%</b></div>
+      <Range value={cut} min={0} max={50} onChange={setCut} />
+      <div className="flex items-end gap-[3px] h-16 mt-3">
+        {months.map((m, i) => (
+          <div key={i} className="flex-1 rounded-t bg-sb/80 transition-all" style={{ height: `${(m / maxM) * 100}%` }} />
+        ))}
+        <div className="flex-1 rounded-t bg-amber-400 transition-all" style={{ height: `${(bonus / maxM) * 100 + (months[11] / maxM) * 100}%` }} title="+ S-Bonus" />
+      </div>
+      <div className="flex justify-between text-[9px] text-slate-400 mt-0.5"><span>Month 1</span><span>Month 12</span><span>+Bonus</span></div>
+      <div className="grid grid-cols-3 gap-1.5 mt-2.5 text-center">
+        <div className="rounded-lg bg-slate-50 p-1.5"><div className="text-[9.5px] text-slate-500">Saved / mo</div><div className="font-bold text-ink text-[13px]">{fmt(save, 2)}</div></div>
+        <div className="rounded-lg bg-emerald-50 p-1.5"><div className="text-[9.5px] text-slate-500">Invested @5%</div><div className="font-bold text-sb text-[13px]">{fmt(fv, 0)}</div></div>
+        <div className="rounded-lg bg-amber-50 p-1.5"><div className="text-[9.5px] text-slate-500">S-Bonus</div><div className="font-bold text-amber-700 text-[13px]">+{fmt(bonus, 2)}</div></div>
+      </div>
+      <div className="mt-2.5 rounded-xl bg-ink text-white p-2.5 flex justify-between items-center">
+        <span className="text-[11px]">After 1 year</span>
+        <span className="text-[20px] font-extrabold tabular-nums">{fmt(total)}</span>
+      </div>
+      <div className="text-[9.5px] text-slate-400 mt-2">Assumes the saving goes into a monthly fund plan (5% p.a., illustrative, not guaranteed) and that cooking at home moves it to S-Group stores at your Bonus level ({BONUS_LVL}%). Level-up tip: moving {fmt(BONUS_NEXT[0] - BONUS_SPEND)} of your K-Group/Lidl shopping to S-Group lifts you to {BONUS_NEXT[1]}% (+{fmt(bonusFor(BONUS_NEXT[0]) - bonusFor(BONUS_SPEND), 2)}/mo).</div>
+      <button className="mt-2 w-full text-[12px] font-semibold text-white bg-sb rounded-xl py-2">Start {fmt(save, 0)}/mo savings plan</button>
+    </WidgetShell>
+  );
+}
+
+/* ---------------- Coach logic ---------------- */
+const CHIPS = [
+  "Help! €400 car repair just hit—how do I pay my €150 Helen electricity bill?",
+  "I only have €50 left for food this week.",
+  "What if I cut Wolt & cafes by 20%?",
+];
+
+function respond(raw, safe) {
+  const q = raw.toLowerCase();
+  const has = (...w) => w.some((x) => q.includes(x));
+  if (has("car", "repair", "helen", "electric", "sähkö", "lasku", "bill", "korjaus") || q === CHIPS[0].toLowerCase()) {
+    const amounts = [...raw.matchAll(/€\s?(\d+(?:[.,]\d+)?)/g)].map((m) => parseFloat(m[1].replace(",", ".")));
+    const bill = amounts.find((a) => a === 150) || 150;
+    const repair = amounts.find((a) => a !== bill) || 400;
+    const left = D.life.avg - repair;
+    return {
+      text: `Ugh, a surprise ${fmt(repair)} repair is stressful, ${D.name} — let's sort it out calmly. 💚\n\nThis is exactly what your Life Happens buffer is for: ${fmt(D.life.avg)}/mo, untouched in September. The repair ${left >= 0 ? `fits, leaving ${fmt(left, 2)}` : `goes ${fmt(-left, 2)} past it`}. But paying Helen's ${fmt(bill)} on Friday as well would leave ${fmt(left - bill, 2)} — basically nothing.\n\nNo quick loan needed. In Finland a payment reminder can only come 14+ days after the due date, and its fee is capped at €5 — so you can safely move the bill past payday:`,
+      widget: "liquidity", props: { repair, bill },
+    };
+  }
+  if (has("only have", "left for food", "€50", "50 left", "punalap", "red label", "discount", "alennus"))
+    return {
+      text: `Got it — €50 for the week. Totally doable. 🛒\n\nI looked at your S-Group trips: ${D.grocery.sgroup.prisma.tx} at Prisma and ${D.grocery.sgroup.alepa.tx} at Alepa. Your last Alepa run was ${D.lastAlepa} — prime full-price hours.\n\nAfter 21:00, many S-Group stores cut red-label (punalappu) items from −30% to −60%. Same €50, more than double the food if you shop late and smart:`,
+      widget: "sniper",
+    };
+  if (has("wolt", "cafe", "café", "coffee", "kahvi", "restaurant", "ravintola", "takeaway", "delivery"))
+    return {
+      text: `Love this question. ☕ Your restaurant & delivery spend averages ${fmt(D.flex.breakdown.Restaurants)}/mo, but September ran hot at ${fmt(D.restaurantsSep)} (6 visits in 12 days).\n\nA 20% trim is barely noticeable day to day — but watch what it compounds into, plus the S-Bonus you earn when that money goes to S-Group groceries instead:`,
+      widget: "cutter",
+    };
+  if (has("grocer", "food", "ruoka", "kauppa", "prisma", "alepa", "s-market", "lidl", "k-market"))
+    return { text: `Your groceries average ${fmt(D.grocery.avg)}/mo — ${(((D.grocery.avg - HELSINKI_GROCERY_BENCH) / HELSINKI_GROCERY_BENCH) * 100).toFixed(0)}% above the Helsinki single-adult benchmark of €380. September was ${fmt(D.grocery.latest)}, right on target. 👏\n\nSplit: ${D.grocery.sgroup.share.toFixed(0)}% S-Group (${fmt(D.grocery.sgroup.avg)}/mo) vs ${D.grocery.comp.share.toFixed(0)}% competitors (${fmt(D.grocery.comp.avg)}/mo). Moving the competitor share to S-Group would boost your S-Bonus with zero extra spend. Want the 9 PM red-label trick? Tap “I only have €50…” below.` };
+  if (has("save", "säästä", "saving", "säästö", "goal", "tavoite"))
+    return { text: `Right now you net about ${fmt(D.netAvg)}/mo after investing ${fmt(D.investAvg)}/mo — that investing habit is great. 🌱\n\nThe fastest extra lever is the Flex Zone: September was ${fmt(D.flex.latest)} vs your ${fmt(D.flex.avg)} average. Getting back to average frees ${fmt(D.flex.latest - D.flex.avg)}/mo — that's ${fmt((D.flex.latest - D.flex.avg) * 12)} a year.` };
+  if (has("invest", "sijoit", "fund", "rahasto", "stock", "osake"))
+    return { text: `You invest ${fmt(D.investAvg)}/mo on average (latest deposit ${fmt(235.72, 2)} on 18 Sep). At 26 that's a strong start — time in the market is your superpower. 📈\n\nKeep it automatic on payday so it happens before Flex spending does. I can't tell you what to buy, but I can show what a bigger monthly amount would grow into.` };
+  if (has("health", "terveys", "apteek", "pharmacy", "doctor", "lääkär", "medicine", "lääke"))
+    return { text: `Health is your biggest Life Happens cost: ${fmt(D.life.breakdown.Health)}/mo on average. Top merchants: ${D.healthTop.map((h) => `${h.n} ${fmt(h.v)}`).join(", ")} over 24 months.\n\nTip: check whether Kela reimbursement or your employer's occupational health care (työterveys) covers any of these — and keep a ${fmt(D.life.avg)}/mo buffer pot so the next August-style spike (${fmt(D.life.aug)}) doesn't sting.` };
+  if (has("balance", "saldo", "how much", "paljonko", "money", "rahaa", "afford"))
+    return { text: `Your S-Bank balance is ${fmt(D.balance, 2)}. But balance ≠ spendable. After Bedrock bills, your Life Happens reserve and investing, your Safe-to-Spend this week is ${fmt(safe)}.\n\nConnect your other banks in “Full Picture” for an even more accurate number.` };
+  if (has("subscription", "netflix", "spotify", "stream", "tilaus", "nordea", "op ", "psd2", "other bank"))
+    return { text: `I can only see your S-Bank account right now. Open the “Full Picture” tab and connect Nordea & OP via PSD2 — I'll scan for duplicate subscriptions and bills you might have forgotten. 🔍` };
+  if (has("travel", "matka", "trip", "holiday", "loma"))
+    return { text: `Travel averages ${fmt(D.flex.breakdown.Travel)}/mo for you. Instead of a big hit, try a travel sinking fund: ${fmt(D.flex.breakdown.Travel)}/mo builds ${fmt(D.flex.breakdown.Travel * 12)} a year — enough for a solid trip without touching your buffer. ✈️` };
+  if (has("entertain", "viihde", "concert", "game", "bar", "party", "fun"))
+    return { text: `Entertainment averages ${fmt(D.flex.breakdown.Entertainment)}/mo, but September had ${fmt(90.96 + 55.85 + 54.42, 2)} in just 10 days (3 late-night purchases). No shame — just pick a weekly fun budget, e.g. ${fmt(D.flex.breakdown.Entertainment / WEEKS)}, and enjoy it guilt-free. 🎟️` };
+  if (has("bonus", "s-bonus", "bonusta", "etukortti"))
+    return { text: `Your Bonus level is ${BONUS_LVL.toFixed(1)} % — based on ${fmt(BONUS_SPEND)}/mo at S-Group stores. That's ≈ ${fmt(BONUS_MONTH, 2)} Bonus + ${fmt(PAY_BENEFIT, 2)} payment-method benefit (S-Etukortti Visa), paid on the 10th. 💚\n\nYou also spend ${fmt(D.grocery.comp.avg)}/mo at K-Group, Lidl & others. Move just ${fmt(BONUS_NEXT[0] - BONUS_SPEND)} of that to S-Group and you hit ${BONUS_NEXT[1]} %. Move all of it (${fmt(BONUS_SPEND + D.grocery.comp.avg)}/mo) and you're at ${bonusPct(BONUS_SPEND + D.grocery.comp.avg)} % — ≈ ${fmt(bonusFor(BONUS_SPEND + D.grocery.comp.avg), 2)}/mo, with zero extra spending.` };
+  if (has("basket", "kori", "bedrock", "flex", "life happens"))
+    return { text: `Your 3 baskets: 🪨 Bedrock ${fmt(D.bedrock.avg)} (62%), 🩹 Life Happens ${fmt(D.life.avg)} (18%), 🌊 Flex Zone ${fmt(D.flex.avg)} (20%). Bedrock is predictable, Life Happens needs a buffer, and Flex is where you have full control.` };
+  if (has("hi", "hello", "hei", "moi", "terve", "hey"))
+    return { text: `Moi ${D.name}! 😊 Ask me anything about your money — bills, food, savings, or “can I afford…?”. Or tap a prompt below.` };
+  return { text: `Good question! Here's how it looks with your numbers: you earn ~${fmt(D.incomeLatest)}/mo, spend ~${fmt(D.spendAvg)}, and invest ${fmt(D.investAvg)}. Your Safe-to-Spend this week is ${fmt(safe)}.\n\nTry asking about groceries, savings, a specific bill, or “what if I cut…” and I'll run the numbers.` };
+}
+
+function Bubble({ m }) {
+  if (m.role === "user")
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[78%] bg-sb text-white rounded-2xl rounded-br-md px-3.5 py-2.5 text-[13.5px] leading-snug shadow-sm">{m.text}</div>
+      </div>
+    );
+  return (
+    <div className="flex gap-2 items-start">
+      <span className="shrink-0"><CoachMark size={28} onDark={false} /></span>
+      <div className="max-w-[85%]">
+        <div data-demo={m.demoId} className="bg-white rounded-2xl rounded-tl-md px-3.5 py-2.5 text-[13.5px] leading-snug text-ink shadow-sm border border-slate-100 whitespace-pre-line">{m.text}</div>
+        {m.widget === "liquidity" && <LiquiditySlider {...(m.props || {})} />}
+        {m.widget === "sniper" && <PunalappuSniper {...(m.props || {})} />}
+        {m.widget === "cutter" && <CutSavings />}
+      </div>
+    </div>
+  );
+}
+
+function CoachTab({ safe, msgs, setMsgs, api }) {
+  const [input, setInput] = useState("");
+  const [typing, setTyping] = useState(false);
+  const endRef = useRef(null);
+  const listRef = useRef(null);
+  useEffect(() => { const el = listRef.current; if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }, [msgs, typing]);
+
+  const ask = (text) => {
+    if (!text.trim() || typing) return;
+    setMsgs((m) => [...m, { role: "user", text }]);
+    setInput("");
+    setTyping(true);
+    setTimeout(() => {
+      setMsgs((m) => [...m, { role: "ai", ...respond(text, safe) }]);
+      setTyping(false);
+    }, 900);
+  };
+
+  if (api) api.current = {
+    setInput, ask,
+    pushAi: (m) => { setTyping(true); setTimeout(() => { setMsgs((x) => [...x, { role: "ai", ...m }]); setTyping(false); }, 900); },
+  };
+  return (
+    <div className="flex flex-col h-full">
+      <div ref={listRef} data-scroll className="flex-1 overflow-y-auto no-scrollbar p-3 pt-7 space-y-3 bg-slate-50">
+        <div className="text-center text-[10.5px] text-slate-400">Today</div>
+        {msgs.map((m, i) => <Bubble key={i} m={m} />)}
+        {typing && (
+          <div className="flex gap-2 items-center">
+            <CoachMark size={28} onDark={false} />
+            <div className="bg-white rounded-2xl px-4 py-3 flex gap-1 border border-slate-100">
+              {[0, 1, 2].map((i) => <span key={i} className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: i * 0.15 + "s" }} />)}
+            </div>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+      <div className="bg-white border-t border-slate-200 pt-2 pb-2">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 pb-2">
+          {CHIPS.map((c, i) => (
+            <button key={i} onClick={() => ask(c)}
+              className="shrink-0 max-w-[230px] text-left text-[11.5px] leading-tight font-medium text-sb bg-emerald-50 border border-emerald-200 rounded-2xl px-3 py-2 active:scale-95 transition">
+              {["🚗 ", "🛒 ", "☕ "][i]}{c}
+            </button>
+          ))}
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); ask(input); }} className="flex gap-2 px-3">
+          <input data-demo="chat-input" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask S-Koutsi anything…"
+            className="flex-1 bg-slate-100 rounded-full px-4 py-2.5 text-[13.5px] outline-none focus:ring-2 focus:ring-sb/40" />
+          <button data-demo="send" className="w-10 h-10 rounded-full bg-sb text-white grid place-items-center disabled:opacity-40" disabled={!input.trim()}>
+            {Icon.send("w-4 h-4")}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Tab 3: PSD2 ---------------- */
+function Toggle({ on, set }) {
+  return (
+    <button data-demo="psd2-toggle" onClick={() => set(!on)} className={`w-12 h-7 rounded-full p-0.5 transition ${on ? "bg-sb" : "bg-slate-300"}`}>
+      <span className={`block w-6 h-6 bg-white rounded-full shadow transition ${on ? "translate-x-5" : ""}`} />
+    </button>
+  );
+}
+
+function BankRow({ logo, name, sub, bal, color, dim }) {
+  return (
+    <div className={`flex items-center gap-3 py-2.5 transition ${dim ? "opacity-35" : ""}`}>
+      <div className={`w-10 h-10 rounded-xl grid place-items-center text-white font-black text-[13px] ${color}`}>{logo}</div>
+      <div className="flex-1">
+        <div className="text-[13.5px] font-semibold text-ink">{name}</div>
+        <div className="text-[11px] text-slate-500">{sub}</div>
+      </div>
+      <div className="text-[14px] font-bold text-ink tabular-nums">{dim ? "—" : fmt(bal, 2)}</div>
+    </div>
+  );
+}
+
+function PSD2Tab({ psd2, setPsd2, safe, resolved, setResolved }) {
+  const [loading, setLoading] = useState(false);
+  const total = useCountUp(D.balance + (psd2 ? EXT.nordea.balance + EXT.op.balance : 0));
+  const safeAnim = useCountUp(safe);
+  const flip = (v) => {
+    if (v) { setLoading(true); setTimeout(() => { setLoading(false); setPsd2(true); }, 1100); }
+    else { setPsd2(false); setResolved(false); }
+  };
+  return (
+    <div className="p-4 pt-7 space-y-3">
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[14px] font-bold text-ink">Connect Nordea & OP Accounts (PSD2)</div>
+            <div className="text-[11px] text-slate-500">Read-only access · consent valid 180 days</div>
+          </div>
+          {loading ? <div className="w-6 h-6 border-[3px] border-sb border-t-transparent rounded-full animate-spin" /> : <Toggle on={psd2} set={flip} />}
+        </div>
+      </div>
+
+      <div data-demo="psd2-totals" className="grid grid-cols-2 gap-2">
+        <div className="rounded-2xl bg-ink text-white p-3.5">
+          <div className="text-[10.5px] text-slate-300">Total balance</div>
+          <div className="text-[22px] font-extrabold tabular-nums">{fmt(total)}</div>
+          <div className="text-[10px] text-slate-400">{psd2 ? "3 banks" : "S-Bank only"}</div>
+        </div>
+        <div className="rounded-2xl bg-sb text-white p-3.5">
+          <div className="text-[10.5px] text-emerald-100">Safe-to-Spend / wk</div>
+          <div className="text-[22px] font-extrabold tabular-nums">{fmt(safeAnim)}</div>
+          <div className="text-[10px] text-emerald-100">{psd2 ? `incl. ${fmt(extMonthly, 2)}/mo other-bank bills` : "Partial view"}</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl px-4 py-1 shadow-sm border border-slate-100 divide-y divide-slate-100">
+        <BankRow logo="S" name="S-Bank" sub="Käyttötili · primary" bal={D.balance} color="bg-sb" />
+        <BankRow logo="N" name="Nordea" sub="Savings + debit card" bal={EXT.nordea.balance} color="bg-[#0000A0]" dim={!psd2} />
+        <BankRow logo="OP" name="OP" sub="Visa credit card" bal={EXT.op.balance} color="bg-[#FF6A10]" dim={!psd2} />
+      </div>
+
+      {psd2 && (
+        <div className="space-y-3 animate-[fadeIn_.4s_ease]">
+          {!resolved ? (
+            <div className="rounded-2xl border-2 border-rose-200 bg-rose-50 p-4">
+              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-rose-600">🔍 Forgotten duplicate found</div>
+              <div className="text-[14px] font-bold text-ink mt-1">You're paying for Netflix twice</div>
+              <div className="mt-2 space-y-1.5">
+                <div className="flex justify-between text-[12px] bg-white rounded-lg px-3 py-2"><span>Netflix · Nordea debit · 3rd</span><b>{fmt(13.99, 2)}</b></div>
+                <div className="flex justify-between text-[12px] bg-white rounded-lg px-3 py-2"><span>Netflix · OP Visa · 11th</span><b>{fmt(13.99, 2)}</b></div>
+              </div>
+              <div className="text-[12px] text-slate-700 mt-2">Cancelling one saves <b>{fmt(13.99 * 12, 2)}/year</b> and adds <b>+{fmt((13.99 / WEEKS), 2)}</b> to your weekly Safe-to-Spend.</div>
+              <button onClick={() => setResolved(true)} className="mt-3 w-full bg-rose-600 text-white text-[13px] font-semibold rounded-xl py-2.5">Mark one as cancelled</button>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-[13px] text-emerald-800">
+              ✅ Nice! {fmt(13.99, 2)}/mo freed up — your Safe-to-Spend just went up. That's {fmt(13.99 * 12, 2)} a year back in your pocket.
+            </div>
+          )}
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+            <div className="text-[12px] font-bold text-ink mb-2">Recurring bills found in other banks</div>
+            {[...EXT.nordea.recurring.map((r) => ({ ...r, b: "Nordea" })), ...EXT.op.recurring.map((r) => ({ ...r, b: "OP" }))].map((r, i) => (
+              <div key={i} className="flex justify-between text-[12px] py-1 text-slate-700">
+                <span>{r.n} <span className="text-slate-400">· {r.b} · {r.day}th</span></span><span className="tabular-nums">{fmt(r.v, 2)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {!psd2 && !loading && (
+        <div className="text-[12px] text-slate-500 bg-white rounded-2xl p-4 border border-dashed border-slate-300 leading-snug">
+          🔒 S-Koutsi currently sees only your S-Bank account. Many young Finns keep a second bank from student days — connecting it lets the coach spot hidden bills and give you a truly safe Safe-to-Spend.
+        </div>
+      )}
+      <div className="text-[10px] text-slate-400 text-center">Nordea & OP figures are simulated sandbox data for this demo.</div>
+    </div>
+  );
+}
+
+/* ---------------- App ---------------- */
+function App({ coachApi, caption }) {
+  const [tab, setTab] = useState("baskets");
+  const [psd2, setPsd2] = useState(false);
+  const [resolved, setResolved] = useState(false);
+  const [msgs, setMsgs] = useState([
+    { role: "ai", text: `Moi ${D.name}! 👋 I'm S-Koutsi, your money coach. I've looked at your last 24 months.\n\nThe good: you invest ${fmt(D.investAvg)}/mo and your groceries were on benchmark in September.\nThe watch-out: your Flex Zone hit ${fmt(D.flex.latest)} last month (+${(((D.flex.latest - D.flex.avg) / D.flex.avg) * 100).toFixed(0)}%).\n\nWhat's on your mind?` },
+  ]);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const fit = () => setScale(Math.min(1, (window.innerHeight - 150) / 844, (window.innerWidth - 20) / 390));
+    fit(); window.addEventListener("resize", fit); return () => window.removeEventListener("resize", fit);
+  }, []);
+  const safe = SAFE_WEEK - (psd2 ? extMonthly / WEEKS : 0) + (psd2 && resolved ? 13.99 / WEEKS : 0);
+
+  return (
+    <div className="min-h-screen w-full flex flex-col items-center justify-center py-6 bg-[radial-gradient(ellipse_at_top,#0f3d2a,#0b1220_60%)] overflow-hidden">
+      <div className="mb-4 text-center">
+        <div className="text-white/90 font-bold tracking-tight text-lg">S-Koutsi · Personal Economic Trainer</div>
+        <div className="text-emerald-300/70 text-xs">Unofficial concept prototype · Junction 2026 · S-Pankki challenge</div>
+        <div className="text-white/40 text-[10.5px] mt-0.5">Not an S-Bank service · hackathon sample data · no real accounts or payments</div>
+      </div>
+      <div style={{ width: 390 * scale, height: 844 * scale }} className="shrink-0"><div style={{ transform: `scale(${scale})`, transformOrigin: "top left" }} className="relative w-[390px] h-[844px] rounded-[54px] bg-black p-[10px] shadow-[0_30px_80px_rgba(0,0,0,.6)] ring-1 ring-white/10 shrink-0">
+        <div className="relative w-full h-full rounded-[44px] overflow-hidden bg-slate-50 flex flex-col">
+          <StatusBar />
+          <AppHeader tab={tab} psd2={psd2} goCoach={() => setTab("coach")} />
+          <div className="flex-1 overflow-hidden relative -mt-4">
+            <div data-scroll className={`absolute inset-0 overflow-y-auto no-scrollbar ${tab === "baskets" ? "" : "hidden"}`}>
+              <BasketsTab safe={safe} psd2={psd2} goCoach={() => setTab("coach")} />
+            </div>
+            <div className={`absolute inset-0 ${tab === "coach" ? "" : "hidden"}`}>
+              <CoachTab safe={safe} msgs={msgs} setMsgs={setMsgs} api={coachApi} />
+            </div>
+            <div data-scroll className={`absolute inset-0 overflow-y-auto no-scrollbar ${tab === "psd2" ? "" : "hidden"}`}>
+              <PSD2Tab psd2={psd2} setPsd2={setPsd2} safe={safe} resolved={resolved} setResolved={setResolved} />
+            </div>
+          </div>
+          <TabBar tab={tab} setTab={setTab} />
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1.5 rounded-full bg-ink/80" />
+        </div>
+      </div></div>
+      <div className="h-9 mt-3 flex items-center">{caption}</div>
+    </div>
+  );
+}
+
+/* ---------------- Auto-play demo (outside the phone) ---------------- */
+const DEMO_LEN = 45;
+const DEMO_QUESTION = "How do I survive this €231 repair and still pay my €150 Helen electricity bill?";
+const STEPS = [
+  [0, "1 · The 3 Baskets — where Aino's money goes"],
+  [10, "2 · Asking S-Koutsi for help"],
+  [15, "3 · Tactical Liquidity — move the bill, not the debt"],
+  [28, "4 · 9 PM Punalappu Sniper"],
+  [40, "5 · Full Picture via PSD2"],
+];
+
+function Cursor({ c }) {
+  return (
+    <div className="fixed left-0 top-0 z-[60] pointer-events-none"
+      style={{ transform: `translate(${c.x}px, ${c.y}px)`, opacity: c.visible ? 1 : 0, transition: "transform 650ms cubic-bezier(.22,.9,.3,1), opacity 300ms" }}>
+      <div className={`absolute -left-5 -top-5 w-10 h-10 rounded-full bg-sb/30 ${c.click ? "scale-150 opacity-0" : "scale-50 opacity-100"}`}
+        style={{ transition: c.click ? "transform 450ms ease-out, opacity 450ms ease-out" : "none" }} />
+      <svg width="26" height="26" viewBox="0 0 24 24" className="drop-shadow-[0_2px_4px_rgba(0,0,0,.45)] -translate-x-[3px] -translate-y-[2px]">
+        <path d="M4 2.5l15 9.2-6.6 1.4 3.7 7.1-2.6 1.3-3.7-7.1L5 18.9z" fill="#fff" stroke="#0b1220" strokeWidth="1.4" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+function Root() {
+  const [k, setK] = useState(0);
+  const [demo, setDemo] = useState({});
+  const [run, setRun] = useState(null); // { t, label, done }
+  const [cur, setCur] = useState({ x: 0, y: 0, visible: false, click: false });
+  const tok = useRef(null);
+  const coachApi = useRef({});
+
+  const stop = () => {
+    if (tok.current) { tok.current.cancelled = true; tok.current.timers.forEach(clearTimeout); cancelAnimationFrame(tok.current.raf); }
+    document.querySelectorAll(".demo-hl").forEach((e) => e.classList.remove("demo-hl"));
+  };
+  const reset = () => { stop(); tok.current = null; setDemo({}); setRun(null); setCur((c) => ({ ...c, visible: false })); setK((x) => x + 1); };
+
+  const play = async () => {
+    reset();
+    const T = { cancelled: false, timers: [], raf: 0 };
+    tok.current = T;
+    const chk = () => { if (T.cancelled) throw new Error("cancelled"); };
+    const sleep = (ms) => new Promise((res, rej) => { T.timers.push(setTimeout(() => (T.cancelled ? rej(new Error("cancelled")) : res()), ms)); });
+    const $ = (sel) => document.querySelector(`[data-demo="${sel}"]`);
+    let start;
+    const at = async (sec) => { const w = start + sec * 1000 - performance.now(); if (w > 0) await sleep(w); chk(); };
+    const scrollTo = async (el) => {
+      const c = el.closest("[data-scroll]");
+      if (!c) return;
+      const er = el.getBoundingClientRect(), cr = c.getBoundingClientRect();
+      const top = c.scrollTop + (er.top - cr.top) - (cr.height - Math.min(er.height, cr.height * 0.85)) / 2;
+      c.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      await sleep(550);
+    };
+    const move = async (sel, dx = 0.5, dy = 0.5) => {
+      const el = typeof sel === "string" ? $(sel) : sel; chk();
+      if (!el) return null;
+      await scrollTo(el);
+      const r = el.getBoundingClientRect();
+      setCur({ x: r.left + r.width * dx, y: r.top + r.height * dy, visible: true, click: false });
+      await sleep(700);
+      return el;
+    };
+    const click = async (sel, dx, dy) => {
+      const el = await move(sel, dx, dy); if (!el) return;
+      setCur((c) => ({ ...c, click: true })); el.click();
+      await sleep(350); setCur((c) => ({ ...c, click: false }));
+    };
+    const hl = (sel, ms) => {
+      const el = $(sel); if (!el) return;
+      el.classList.add("demo-hl");
+      T.timers.push(setTimeout(() => el.classList.remove("demo-hl"), ms));
+    };
+    const tween = (key, from, to, ms) => new Promise((res) => {
+      const t0 = performance.now();
+      const step = (t) => {
+        if (T.cancelled) return res();
+        const p = Math.min(1, (t - t0) / ms), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        setDemo((d) => ({ ...d, [key]: from + (to - from) * e }));
+        if (p < 1) T.raf = requestAnimationFrame(step); else res();
+      };
+      T.raf = requestAnimationFrame(step);
+    });
+    const label = (sec) => ([...STEPS].reverse().find(([s]) => sec >= s) || STEPS[0])[1];
+    const ticker = setInterval(() => {
+      if (T.cancelled) return clearInterval(ticker);
+      if (start == null) return;
+      const sec = Math.min(DEMO_LEN, (performance.now() - start) / 1000);
+      setRun((r) => (r && r.done ? r : { t: sec, label: label(sec) }));
+    }, 100);
+    T.timers.push(ticker);
+
+    try {
+      await sleep(350); // let the fresh app mount
+      start = performance.now();
+      setRun({ t: 0, label: STEPS[0][1] });
+      setDemo({ scenario: true });
+      const r0 = document.querySelector("[data-demo='tab-baskets']").getBoundingClientRect();
+      setCur({ x: r0.left + r0.width / 2, y: r0.top - 40, visible: true, click: false });
+
+      // 1 · 3 Baskets (0–10s)
+      await at(0.4); await move("safe", 0.3, 0.35); hl("safe", 2600);
+      await at(3.2); await move("bedrock", 0.75, 0.15); hl("bedrock", 2200);
+      await at(5.4); await move("life", 0.55, 0.12); hl("life", 2400);
+      await at(7.8); await move("flex", 0.75, 0.15); hl("flex", 2200);
+
+      // 2 · Ask the coach (10–15s)
+      await at(10); await click("tab-coach");
+      await at(10.9); await click("chat-input", 0.3, 0.5);
+      for (let i = 1; i <= DEMO_QUESTION.length; i++) { coachApi.current.setInput(DEMO_QUESTION.slice(0, i)); await sleep(38); }
+      await at(14.6); await click("send");
+
+      // 3 · Liquidity slider (15–28s)
+      setDemo((d) => ({ ...d, liqDays: 0 }));
+      await at(16.8); await move("liq-friday"); hl("liq-friday", 2800);
+      await at(20); await move("liq-buffer"); hl("liq-buffer", 4000);
+      setCur((c) => ({ ...c, click: true })); await sleep(300); setCur((c) => ({ ...c, click: false }));
+      await tween("liqDays", 0, 14, 1600);
+      await at(23.5); await move("liq-note", 0.15, 0.25); hl("liq-note", 3800);
+
+      // 4 · Punalappu Sniper (28–40s)
+      await at(26.8);
+      setDemo((d) => ({ ...d, sniperShare: 30 }));
+      coachApi.current.pushAi({
+        demoId: "sniper-insight",
+        text: `💡 One more thing I spotted: you spend ${fmt(D.grocery.comp.avg, 2)}/mo at K-Group, Lidl & other stores.\n\nShift that to Prisma or Alepa after 21:00, when 30% red-label discounts double to 60%, and you could save up to ${fmt(D.grocery.comp.avg * 0.6)}/mo* — plus your Bonus level climbs from ${BONUS_LVL.toFixed(1)}% toward ${bonusPct(BONUS_SPEND + D.grocery.comp.avg).toFixed(1)}%.\n\n*if those buys are all red-label items`,
+        widget: "sniper", props: { budget: 100 },
+      });
+      await at(28.3); await move("sniper-insight", 0.8, 0.3); hl("sniper-insight", 3800);
+      await at(32.3); await move("sniper-share", 0.35, 0.75); hl("sniper-share", 3200);
+      await tween("sniperShare", 30, 100, 2400);
+      await at(35.5); await move("sniper-result", 0.7, 0.5); hl("sniper-result", 4000);
+
+      // 5 · PSD2 (40–45s)
+      await at(40); await click("tab-psd2");
+      await at(40.9); await click("psd2-toggle");
+      await at(42.4); await move("psd2-totals", 0.5, 0.6); hl("psd2-totals", 2600);
+      await at(DEMO_LEN);
+      clearInterval(ticker);
+      setRun({ t: DEMO_LEN, label: "✅ Demo complete", done: true });
+      await sleep(1200); setCur((c) => ({ ...c, visible: false }));
+    } catch (e) { clearInterval(ticker); }
+  };
+
+  useEffect(() => () => stop(), []);
+
+  const caption = run && (
+    <div className="flex items-center gap-3 bg-white/10 backdrop-blur rounded-full pl-4 pr-3 py-1.5 text-white text-[12.5px] font-medium ring-1 ring-white/15">
+      <span>{run.label}</span>
+      <span className="w-24 h-1 rounded-full bg-white/15 overflow-hidden"><span className="block h-full bg-emerald-400" style={{ width: `${(run.t / DEMO_LEN) * 100}%` }} /></span>
+      <span className="tabular-nums text-white/60 text-[11px] w-8 text-right">{Math.floor(run.t)}s</span>
+    </div>
+  );
+
+  return (
+    <DemoCtx.Provider value={demo}>
+      <App key={k} coachApi={coachApi} caption={caption} />
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button onClick={play}
+          className="rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white text-[13px] font-semibold px-4 py-2 ring-1 ring-white/20 shadow-lg transition">
+          🎬 Auto-Play Demo (45s)
+        </button>
+        <button onClick={reset}
+          className="rounded-full bg-white/5 hover:bg-white/15 backdrop-blur text-white/80 text-[13px] font-medium px-3.5 py-2 ring-1 ring-white/15 transition">
+          ↺ Reset Demo
+        </button>
+      </div>
+      <Cursor c={cur} />
+    </DemoCtx.Provider>
+  );
+}
+
+createRoot(document.getElementById("root")).render(<Root />);
+
+
+  </script>
+</body>
+</html>
